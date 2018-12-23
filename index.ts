@@ -1,6 +1,10 @@
-import PB, {Namespace, Service} from 'protobufjs'
+import PB, {Namespace, Service, Type} from 'protobufjs'
 
 const rv = PB.loadSync(process.argv[2])
+rv.resolveAll()
+
+console.log('import grpc from \'grpc\'\n' +
+  'import {CommandQueued, files} from \'../api/proto\'')
 
 function visit(x: PB.ReflectionObject, path: string) {
   if (x instanceof Namespace) {
@@ -11,23 +15,39 @@ function visit(x: PB.ReflectionObject, path: string) {
     }
   }
 
+  function nspName(x: Type) {
+    return x.fullName.substr(1)
+  }
+
+  function intName(x: Type) {
+    const rv = x.fullName
+    return (rv.substr(0, rv.lastIndexOf('.') + 1) + 'I' + x.name).substr(1)
+  }
+
   const println = console.log
   if (x instanceof Service) {
     const requestSerializers: any = {}
     const responseDeserializers: any = {}
 
     for (const m of x.methodsArray) {
+      const {resolvedRequestType: req, resolvedResponseType: res} = m
 
-      if (!requestSerializers[m.requestType]) {
-        requestSerializers[m.requestType] = `(t: I${m.requestType}) => <Buffer>${m.requestType}.encode(t).finish()`
-      }
+      if (req && res) {
 
-      if (!responseDeserializers[m.responseType]) {
-        responseDeserializers[m.responseType] = `(b: Buffer) => ${m.requestType}.decode(<Uint8Array>b)`
+        if (!requestSerializers[m.requestType]) {
+          requestSerializers[m.requestType] = `(t: ${intName(req)}) => <Buffer>${nspName(req)}.encode(t).finish()`
+        }
+
+        if (!responseDeserializers[m.responseType]) {
+          responseDeserializers[m.responseType] = `(b: Buffer) => ${nspName(res)}.decode(<Uint8Array>b)`
+        }
       }
     }
 
     println(`export class ${x.name}Client {`)
+    println('private client: grpc.Client')
+    println('')
+
     for (const name in requestSerializers) {
       println(`\tprivate serialize${name} = ${requestSerializers[name]}`)
     }
@@ -46,13 +66,17 @@ function visit(x: PB.ReflectionObject, path: string) {
 
     /* for each method */
     for (const m of x.methodsArray) {
+      /* unary */
       if (!m.requestStream && !m.responseStream) {
-        /* unary */
-        println(`\t${m.name}(arg: ${m.requestType}, meta?: grpc.Metadata): Promise<${m.responseType}> {`)
-        println(`\t\treturn new Promise<${m.responseType}>((request, response) => {`)
-        println(`\t\t\tthis.client.makeUnaryRequest('${m.fullName.replace('.', '/')}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta, null, (error, result) => error ? reject(error) : resolve(result))`)
-        println(`\t\t})`)
-        println(`\t}`)
+        const {resolvedRequestType: req, resolvedResponseType: res} = m
+
+        if (req && res) {
+          println(`\t${m.name}(arg: ${nspName(req)}, meta?: grpc.Metadata): Promise<${nspName(res)}> {`)
+          println(`\t\treturn new Promise<${nspName(res)}>((resolve, reject) => {`)
+          println(`\t\t\tthis.client.makeUnaryRequest('${m.fullName.replace('.', '/')}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
+          println(`\t\t})`)
+          println(`\t}`)
+        }
       }
     }
 
