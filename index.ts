@@ -1,6 +1,6 @@
 import PB, {Namespace, Service} from 'protobufjs'
 
-const rv = PB.loadSync("../apis/users.proto")
+const rv = PB.loadSync(process.argv[2])
 
 function visit(x: PB.ReflectionObject, path: string) {
   if (x instanceof Namespace) {
