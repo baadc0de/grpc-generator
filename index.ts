@@ -19,7 +19,7 @@ function visit(x: PB.ReflectionObject, path: string) {
     for (const m of x.methodsArray) {
 
       if (!requestSerializers[m.requestType]) {
-        requestSerializers[m.requestType] = `(t: I${m.requestType}) => ${m.requestType}.encode(t).finish()`
+        requestSerializers[m.requestType] = `(t: I${m.requestType}) => <Buffer>${m.requestType}.encode(t).finish()`
       }
 
       if (!responseDeserializers[m.responseType]) {
