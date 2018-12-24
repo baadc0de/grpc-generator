@@ -1,14 +1,18 @@
-import PB, {Namespace, ReflectionObject, Service, Type} from 'protobufjs'
+import PB, {Namespace, ReflectionObject, roots, Service, Type} from 'protobufjs'
 import {sendUnaryData, ServerUnaryCall} from "grpc"
+import program, {Command} from 'commander'
+import * as fs from "fs"
+import {Writable} from "stream"
+
 
 const visitedClient: string[] = []
 const visitedServer: string[] = []
 
-function generateServer(x: ReflectionObject, path: string) {
+function generateServer(out: Writable, x: ReflectionObject, path: string) {
   if (x instanceof Namespace) {
     if (x.nested) {
       for (const name in x.nested) {
-        generateServer(x.nested[name], `${path}.${name}`)
+        generateServer(out, x.nested[name], `${path}.${name}`)
       }
     }
   }
@@ -32,7 +36,7 @@ function generateServer(x: ReflectionObject, path: string) {
     return `/${x.substr(1, x.lastIndexOf('.') - 1)}/${x.substr(x.lastIndexOf('.') + 1)}`
   }
 
-  const println = console.log
+  const println = (str: string) => out.write(str + '\n')
   if (x instanceof Service) {
     const requestSerializers: any = {}
     const responseDeserializers: any = {}
@@ -129,11 +133,11 @@ function generateServer(x: ReflectionObject, path: string) {
   }
 }
 
-function generateClient(x: ReflectionObject, path: string) {
+function generateClient(out: Writable, x: ReflectionObject, path: string) {
   if (x instanceof Namespace) {
     if (x.nested) {
       for (const name in x.nested) {
-        generateClient(x.nested[name], `${path}.${name}`)
+        generateClient(out, x.nested[name], `${path}.${name}`)
       }
     }
   }
@@ -158,7 +162,8 @@ function generateClient(x: ReflectionObject, path: string) {
     return `/${x.substr(1, x.lastIndexOf('.') - 1)}/${x.substr(x.lastIndexOf('.') + 1)}`
   }
 
-  const println = console.log
+  const println = (str: string) => out.write(str + '\n')
+
   if (x instanceof Service) {
     const requestSerializers: any = {}
     const responseDeserializers: any = {}
@@ -264,17 +269,29 @@ function collectNamespacesAndGlobals(nsp: string[], globals: string[], n: Reflec
   visit(n, [])
 }
 
-const roots = process.argv.slice(2).map(file => PB.loadSync(file))
-/* find all top level imports */
-roots.forEach(r => r.resolveAll())
+program.version("1.0.0")
+  .option('-i, --include <path>', 'include path', './proto')
+  .option('-o, --output <path>', 'output path', 'node.ts')
+  .action(function (...args) {
+    const {include, output} = args.pop()
+    const out = fs.createWriteStream(output)
 
-const namespaces: string[] = []
-const globals: string[] = []
-roots.forEach(r => collectNamespacesAndGlobals(namespaces, globals, r))
+    const roots = args.map(file => PB.loadSync(file))
+    /* find all top level imports */
+    roots.forEach(r => r.resolveAll())
+
+    const namespaces: string[] = []
+    const globals: string[] = []
+    roots.forEach(r => collectNamespacesAndGlobals(namespaces, globals, r))
 
 
-console.log('import grpc, {ServerUnaryCall, sendUnaryData} from \'grpc\'')
-console.log(`import {${[...namespaces, ...globals].join(', ')}} from '../apis/proto'`)
+    out.write('import grpc, {ServerUnaryCall, sendUnaryData} from \'grpc\'\n')
+    out.write(`import {${[...namespaces, ...globals].join(', ')}} from '${include}'\n\n`)
 
-roots.forEach(r => generateClient(r, ""))
-roots.forEach(r => generateServer(r, ""))
+    roots.forEach(r => generateClient(out, r, ""))
+    roots.forEach(r => generateServer(out, r, ""))
+
+    out.end(() => process.exit(0))
+  })
+
+program.parse(process.argv)

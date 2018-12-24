@@ -5,3 +5,4 @@ node_modules
 /client.ts
 /server.ts
 /test.ts
+/node.ts

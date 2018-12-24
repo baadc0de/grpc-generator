@@ -9,8 +9,9 @@
   },
   "keywords": [],
   "author": "",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
+    "commander": "^2.19.0",
     "grpc": "^1.17.0",
     "protobufjs": "^6.8.8",
     "typescript": "^3.2.2"
