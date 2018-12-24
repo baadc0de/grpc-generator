@@ -1,10 +1,10 @@
 import PB, {Namespace, Service, Type} from 'protobufjs'
 
-const rv = PB.loadSync(process.argv[2])
-rv.resolveAll()
-
 console.log('import grpc from \'grpc\'\n' +
   'import {CommandQueued, files} from \'../api/proto\'')
+
+
+const visited: string[] = []
 
 function visit(x: PB.ReflectionObject, path: string) {
   if (x instanceof Namespace) {
@@ -15,6 +15,13 @@ function visit(x: PB.ReflectionObject, path: string) {
     }
   }
 
+
+  if (visited.indexOf(x.fullName) >= 0) {
+    return
+  } else {
+    visited.push(x.fullName)
+  }
+
   function nspName(x: Type) {
     return x.fullName.substr(1)
   }
@@ -22,6 +29,10 @@ function visit(x: PB.ReflectionObject, path: string) {
   function intName(x: Type) {
     const rv = x.fullName
     return (rv.substr(0, rv.lastIndexOf('.') + 1) + 'I' + x.name).substr(1)
+  }
+
+  function rpcName(x: string) {
+    return `/${x.substr(1, x.lastIndexOf('.') - 1)}/${x.substr(x.lastIndexOf('.') + 1)}`
   }
 
   const println = console.log
@@ -73,7 +84,7 @@ function visit(x: PB.ReflectionObject, path: string) {
         if (req && res) {
           println(`\t${m.name}(arg: ${nspName(req)}, meta?: grpc.Metadata): Promise<${nspName(res)}> {`)
           println(`\t\treturn new Promise<${nspName(res)}>((resolve, reject) => {`)
-          println(`\t\t\tthis.client.makeUnaryRequest('${m.fullName.replace('.', '/')}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
+          println(`\t\t\tthis.client.makeUnaryRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
           println(`\t\t})`)
           println(`\t}`)
         }
@@ -84,4 +95,6 @@ function visit(x: PB.ReflectionObject, path: string) {
   }
 }
 
-visit(rv, "")
+const roots = process.argv.slice(2).map(file => PB.loadSync(file))
+roots.forEach(r => r.resolveAll())
+roots.forEach(r => visit(r, ""))
