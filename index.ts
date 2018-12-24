@@ -56,7 +56,7 @@ function visit(x: PB.ReflectionObject, path: string) {
     }
 
     println(`export class ${x.name}Client {`)
-    println('private client: grpc.Client')
+    println('\tprivate client: grpc.Client')
     println('')
 
     for (const name in requestSerializers) {
@@ -88,6 +88,12 @@ function visit(x: PB.ReflectionObject, path: string) {
           println(`\t\t})`)
           println(`\t}`)
         }
+      } else if (m.responseStream && !m.requestStream) {
+        println(`\t// TODO ${m.fullName} - server streaming`)
+      } else if (m.requestStream && !m.responseStream) {
+        println(`\t// TODO ${m.fullName} - client streaming`)
+      } else {
+        println(`\t// TODO ${m.fullName} - bidi streaming`)
       }
     }
 
