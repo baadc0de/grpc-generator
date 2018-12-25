@@ -1,8 +1,9 @@
 node_modules
 .idea
-/dist/*.js
-/dist/*.ts
 /client.ts
 /server.ts
 /test.ts
 /node.ts
+*.js
+*.d.ts
+!/cli.js
