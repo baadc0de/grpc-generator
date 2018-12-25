@@ -77,7 +77,7 @@ function generateServer(out: Writable, x: ReflectionObject, path: string) {
 
     println('')
 
-    println('\tconstructor(server: grpc.Server) {')
+    println('\tattachToServer(server: grpc.Server) {')
     println('\t\tserver.addService({')
 
     for (const m of x.methodsArray) {
