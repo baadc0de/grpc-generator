@@ -114,18 +114,17 @@ function generateServer(out: Writable, x: ReflectionObject, path: string) {
     /* for each method */
     for (const m of x.methodsArray) {
       /* unary */
-      if (!m.requestStream && !m.responseStream) {
-        const {resolvedRequestType: req, resolvedResponseType: res} = m
-
-        if (req && res) {
+      const {resolvedRequestType: req, resolvedResponseType: res} = m
+      if (req && res) {
+        if (!m.requestStream && !m.responseStream) {
           println(`\tabstract ${m.name}(arg: ${intName(req)}, meta?: grpc.Metadata): Promise<${intName(res)}>;`)
+        } else if (m.responseStream && !m.requestStream) {
+          println(`\tabstract ${m.name}(arg: ${intName(req)}, meta?: grpc.Metadata): Observable<${intName(res)}>;`)
+        } else if (m.requestStream && !m.responseStream) {
+          println(`\tabstract ${m.name}(arg: Observable<${intName(req)}>, meta?: grpc.Metadata): Promise<${intName(res)}>;`)
+        } else {
+          println(`\tabstract ${m.name}(arg: Observable<${intName(req)}>, meta?: grpc.Metadata): Observable<${intName(res)}>;`)
         }
-      } else if (m.responseStream && !m.requestStream) {
-        println(`\t// TODO ${m.fullName} - server streaming`)
-      } else if (m.requestStream && !m.responseStream) {
-        println(`\t// TODO ${m.fullName} - client streaming`)
-      } else {
-        println(`\t// TODO ${m.fullName} - bidi streaming`)
       }
     }
 
@@ -205,22 +204,42 @@ function generateClient(out: Writable, x: ReflectionObject, path: string) {
     /* for each method */
     for (const m of x.methodsArray) {
       /* unary */
-      if (!m.requestStream && !m.responseStream) {
-        const {resolvedRequestType: req, resolvedResponseType: res} = m
-
-        if (req && res) {
+      const {resolvedRequestType: req, resolvedResponseType: res} = m
+      if (req && res) {
+        if (!m.requestStream && !m.responseStream) {
           println(`\t${m.name}(arg: ${intName(req)}, meta?: grpc.Metadata): Promise<${intName(res)}> {`)
           println(`\t\treturn new Promise<${nspName(res)}>((resolve, reject) => {`)
           println(`\t\t\tthis.makeUnaryRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
           println(`\t\t})`)
           println(`\t}`)
+        } else if (m.responseStream && !m.requestStream) {
+          println(`\t${m.name}(arg: ${intName(req)}, meta?: grpc.Metadata): Observable<${intName(res)}> {`)
+          println(`\t\tconst stream = this.makeServerStreamRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null)`)
+          println(`\t\tconst rv = new AsyncSubject<${intName(res)}>()`)
+          println(`\t\tstream.on('data', item => rv.next(item))`)
+          println(`\t\tstream.on('error', item => rv.error(item))`)
+          println(`\t\tstream.on('end', () => rv.complete())`)
+          println(`\t\treturn rv`)
+          println(`\t}`)
+
+        } else if (m.requestStream && !m.responseStream) {
+          println(`\t${m.name}(arg: Observable<${intName(req)}>, meta?: grpc.Metadata): Promise<${intName(res)}> {`)
+          println(`\t\treturn new Promise<${nspName(res)}>((resolve, reject) => {`)
+          println(`\t\t\tconst stream = this.makeClientStreamRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
+          println(`\t\t\targ.subscribe(item => stream.write(item), (err) => stream.destroy(err), () => stream.end())`)
+          println(`\t\t})`)
+          println(`\t}`)
+        } else {
+          println(`\t${m.name}(arg: Observable<${intName(req)}>, meta?: grpc.Metadata): Observable<${intName(res)}> {`)
+          println(`\t\tconst stream = this.makeBidiStreamRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, meta || null, null)`)
+          println(`\t\tconst rv = new AsyncSubject<${intName(res)}>()`)
+          println(`\t\tstream.on('data', item => rv.next(item))`)
+          println(`\t\tstream.on('error', item => rv.error(item))`)
+          println(`\t\tstream.on('end', () => rv.complete())`)
+          println(`\t\targ.subscribe(item => stream.write(item), (err) => stream.destroy(err), () => stream.end())`)
+          println(`\t\treturn rv`)
+          println(`\t}`)
         }
-      } else if (m.responseStream && !m.requestStream) {
-        println(`\t// TODO ${m.fullName} - server streaming`)
-      } else if (m.requestStream && !m.responseStream) {
-        println(`\t// TODO ${m.fullName} - client streaming`)
-      } else {
-        println(`\t// TODO ${m.fullName} - bidi streaming`)
       }
     }
 
@@ -286,6 +305,7 @@ program.version("1.0.0")
 
 
     out.write('import grpc, {ServerUnaryCall, sendUnaryData} from \'grpc\'\n')
+    out.write('import {AsyncSubject, Observable} from \'rxjs\'\n')
     out.write(`import {${[...namespaces, ...globals].join(', ')}} from '${include}'\n\n`)
 
     roots.forEach(r => generateClient(out, r, ""))
