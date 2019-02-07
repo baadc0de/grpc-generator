@@ -362,7 +362,7 @@ program.version("1.0.0")
 
     out.write(`export default [\n`)
     roots.forEach(r => generateMeta(out, r, ""))
-    out.write(`]\n`)
+    out.write(`] as Array<{ service: string, methods: Array<{ name: string, reqType: any, resType: any, reqStream: boolean, resStream: boolean }> }>\n`)
 
     out.end(() => process.exit(0))
   })
