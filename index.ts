@@ -7,6 +7,49 @@ import {Writable} from "stream"
 
 const visitedClient: string[] = []
 const visitedServer: string[] = []
+const visitedMeta: string[] = []
+
+function generateMeta(out: Writable, x: ReflectionObject, path: string) {
+  if (x instanceof Namespace) {
+    if (x.nested) {
+      for (const name in x.nested) {
+        generateMeta(out, x.nested[name], `${path}.${name}`)
+      }
+    }
+  }
+
+  if (visitedMeta.indexOf(x.fullName) >= 0) {
+    return
+  } else {
+    visitedMeta.push(x.fullName)
+  }
+
+  function nspName(x: Type) {
+    return x.fullName.substr(1)
+  }
+
+  function intName(x: Type) {
+    const rv = x.fullName
+    return (rv.substr(0, rv.lastIndexOf('.') + 1) + 'I' + x.name).substr(1)
+  }
+
+  function rpcName(x: string) {
+    return `/${x.substr(1, x.lastIndexOf('.') - 1)}/${x.substr(x.lastIndexOf('.') + 1)}`
+  }
+
+  const println = (str: string) => out.write(str + '\n')
+
+  if (x instanceof Service) {
+    println(`\t{service: '${x.name}', methods: [`)
+    for (const m of x.methodsArray) {
+      const {resolvedRequestType: req, resolvedResponseType: res} = m
+      if (req && res) {
+        println(`\t{name: '${rpcName(m.fullName)}', reqType: ${nspName(req)}, resType: ${nspName(res)}, reqStream: ${!!m.requestStream}, resStream: ${!!m.responseStream}},`)
+      }
+    }
+    println(`\t]},`)
+  }
+}
 
 function generateServer(out: Writable, x: ReflectionObject, path: string) {
   if (x instanceof Namespace) {
@@ -291,9 +334,10 @@ function collectNamespacesAndGlobals(nsp: string[], globals: string[], n: Reflec
 program.version("1.0.0")
   .option('-i, --include <path>', 'include path', './proto')
   .option('-o, --output <path>', 'output path', 'node.ts')
+  .option('-m, --meta <path>', 'meta output path', 'meta.ts')
   .action(function (...args) {
-    const {include, output} = args.pop()
-    const out = fs.createWriteStream(output)
+    const {include, output, meta} = args.pop()
+    let out = fs.createWriteStream(output)
 
     const roots = args.map(file => PB.loadSync(file))
     /* find all top level imports */
@@ -310,6 +354,15 @@ program.version("1.0.0")
 
     roots.forEach(r => generateClient(out, r, ""))
     roots.forEach(r => generateServer(out, r, ""))
+
+    out.end()
+    out = fs.createWriteStream(meta)
+
+    out.write(`import {${[...namespaces, ...globals.filter(n => !n.startsWith('I'))].join(', ')}} from '${include}'\n\n`)
+
+    out.write(`export default [\n`)
+    roots.forEach(r => generateMeta(out, r, ""))
+    out.write(`]\n`)
 
     out.end(() => process.exit(0))
   })

@@ -4,6 +4,7 @@ node_modules
 /server.ts
 /test.ts
 /node.ts
+/meta.ts
 *.js
 *.d.ts
 !/cli.js
