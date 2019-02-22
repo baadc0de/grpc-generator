@@ -9,6 +9,10 @@ const visitedClient: string[] = []
 const visitedServer: string[] = []
 const visitedMeta: string[] = []
 
+function toVarName(name: string): string {
+  return name.replace(/\./gi, '')
+}
+
 function generateMeta(out: Writable, x: ReflectionObject, path: string) {
   if (x instanceof Namespace) {
     if (x.nested) {
@@ -111,11 +115,11 @@ function generateServer(out: Writable, x: ReflectionObject, path: string) {
     println('')
 
     for (const name in requestSerializers) {
-      println(`\tprivate serialize${name} = ${requestSerializers[name]}`)
+      println(`\tprivate serialize${toVarName(name)} = ${requestSerializers[name]}`)
     }
 
     for (const name in responseDeserializers) {
-      println(`\tprivate deserialize${name} = ${responseDeserializers[name]}`)
+      println(`\tprivate deserialize${toVarName(name)} = ${responseDeserializers[name]}`)
     }
 
     println('')
@@ -130,10 +134,10 @@ function generateServer(out: Writable, x: ReflectionObject, path: string) {
         if (req && res) {
           println(`\t\t\t${m.name}: {`)
           println(`\t\t\t\tresponseStream: false, requestStream: false, path: '${rpcName(m.fullName)}',`)
-          println(`\t\t\t\trequestSerialize: this.serialize${req.name},`)
-          println(`\t\t\t\trequestDeserialize: this.deserialize${req.name},`)
-          println(`\t\t\t\tresponseSerialize: this.serialize${res.name},`)
-          println(`\t\t\t\tresponseDeserialize: this.deserialize${res.name}`)
+          println(`\t\t\t\trequestSerialize: this.serialize${toVarName(req.name)},`)
+          println(`\t\t\t\trequestDeserialize: this.deserialize${toVarName(req.name)},`)
+          println(`\t\t\t\tresponseSerialize: this.serialize${toVarName(res.name)},`)
+          println(`\t\t\t\tresponseDeserialize: this.deserialize${toVarName(res.name)}`)
           println(`\t\t\t},`)
         }
       }
