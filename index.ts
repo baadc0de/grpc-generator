@@ -233,11 +233,11 @@ function generateClient(out: Writable, x: ReflectionObject, path: string) {
     println('')
 
     for (const name in requestSerializers) {
-      println(`\tprivate serialize${name} = ${requestSerializers[name]}`)
+      println(`\tprivate serialize${toVarName(name)} = ${requestSerializers[name]}`)
     }
 
     for (const name in responseDeserializers) {
-      println(`\tprivate deserialize${name} = ${responseDeserializers[name]}`)
+      println(`\tprivate deserialize${toVarName(name)} = ${responseDeserializers[name]}`)
     }
 
     println('')
@@ -256,12 +256,12 @@ function generateClient(out: Writable, x: ReflectionObject, path: string) {
         if (!m.requestStream && !m.responseStream) {
           println(`\t${m.name}(arg: ${intName(req)}, meta?: grpc.Metadata): Promise<${intName(res)}> {`)
           println(`\t\treturn new Promise<${nspName(res)}>((resolve, reject) => {`)
-          println(`\t\t\tthis.makeUnaryRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
+          println(`\t\t\tthis.makeUnaryRequest('${rpcName(m.fullName)}', this.serialize${toVarName(m.requestType)}, this.deserialize${toVarName(m.responseType)}, arg, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
           println(`\t\t})`)
           println(`\t}`)
         } else if (m.responseStream && !m.requestStream) {
           println(`\t${m.name}(arg: ${intName(req)}, meta?: grpc.Metadata): Observable<${intName(res)}> {`)
-          println(`\t\tconst stream = this.makeServerStreamRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, arg, meta || null, null)`)
+          println(`\t\tconst stream = this.makeServerStreamRequest('${rpcName(m.fullName)}', this.serialize${toVarName(m.requestType)}, this.deserialize${toVarName(m.responseType)}, arg, meta || null, null)`)
           println(`\t\tconst rv = new AsyncSubject<${intName(res)}>()`)
           println(`\t\tstream.on('data', item => rv.next(item))`)
           println(`\t\tstream.on('error', item => rv.error(item))`)
@@ -272,13 +272,13 @@ function generateClient(out: Writable, x: ReflectionObject, path: string) {
         } else if (m.requestStream && !m.responseStream) {
           println(`\t${m.name}(arg: Observable<${intName(req)}>, meta?: grpc.Metadata): Promise<${intName(res)}> {`)
           println(`\t\treturn new Promise<${nspName(res)}>((resolve, reject) => {`)
-          println(`\t\t\tconst stream = this.makeClientStreamRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
+          println(`\t\t\tconst stream = this.makeClientStreamRequest('${rpcName(m.fullName)}', this.serialize${toVarName(m.requestType)}, this.deserialize${toVarName(m.responseType)}, meta || null, null, (error, result) => error ? reject(error) : resolve(result))`)
           println(`\t\t\targ.subscribe(item => stream.write(item), (err) => stream.destroy(err), () => stream.end())`)
           println(`\t\t})`)
           println(`\t}`)
         } else {
           println(`\t${m.name}(arg: Observable<${intName(req)}>, meta?: grpc.Metadata): Observable<${intName(res)}> {`)
-          println(`\t\tconst stream = this.makeBidiStreamRequest('${rpcName(m.fullName)}', this.serialize${m.requestType}, this.deserialize${m.responseType}, meta || null, null)`)
+          println(`\t\tconst stream = this.makeBidiStreamRequest('${rpcName(m.fullName)}', this.serialize${toVarName(m.requestType)}, this.deserialize${toVarName(m.responseType)}, meta || null, null)`)
           println(`\t\tconst rv = new AsyncSubject<${intName(res)}>()`)
           println(`\t\tstream.on('data', item => rv.next(item))`)
           println(`\t\tstream.on('error', item => rv.error(item))`)
